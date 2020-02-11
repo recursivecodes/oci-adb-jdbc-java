@@ -14,7 +14,7 @@ CREATE TABLE EMPLOYEES (
 * Create Application
 
 ```bash
-fn create app oci-adb-jdbc-java-app --annotation oracle.com/oci/subnetIds='["ocid1.subnet.oc1.phx.aaaaaaaaxi5jl3qf7weahirffrn6ttv2qjnagomwjvm367fcqocfmu6de5qa"]'
+fn create app oci-adb-jdbc-java-app --annotation oracle.com/oci/subnetIds='["ocid1.subnet.oc1.phx..."]'
 ```
 
 * Create Function
