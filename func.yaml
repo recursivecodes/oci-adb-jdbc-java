@@ -7,4 +7,3 @@ run_image: fnproject/fn-java-fdk:jre11-1.0.105
 cmd: com.example.fn.HelloFunction::handleRequest
 memory: 1024
 timeout: 120
-idle_timeout: 1800

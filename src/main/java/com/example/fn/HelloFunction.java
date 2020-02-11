@@ -43,6 +43,9 @@ public class HelloFunction {
             poolDataSource.setUser(dbUser);
             poolDataSource.setPassword(dbPassword);
             poolDataSource.setConnectionPoolName("UCP_POOL");
+            poolDataSource.setInitialPoolSize(1);
+            poolDataSource.setMinPoolSize(1);
+            poolDataSource.setMaxPoolSize(1);
         }
         catch (SQLException e) {
             System.out.println("Pool data source error!");
