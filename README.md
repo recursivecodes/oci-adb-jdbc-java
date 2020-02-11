@@ -1,5 +1,16 @@
 # oci-adb-jdbc-java
 
+* Create Table
+
+```sql
+CREATE TABLE EMPLOYEES (
+    EMP_EMAIL VARCHAR2(100 BYTE) NOT NULL, 
+    EMP_NAME VARCHAR2(100 BYTE),
+    EMP_DEPT VARCHAR2(50 BYTE), 
+    CONSTRAINT PK_EMP PRIMARY KEY ( EMP_EMAIL )
+);
+```
+
 * Create Application
 
 ```bash
@@ -24,6 +35,9 @@ cd oci-adb-jdbc-java
 fn config app oci-adb-jdbc-java-app DB_PASSWORD [password]
 fn config app oci-adb-jdbc-java-app DB_URL jdbc:oracle:thin:\@barnevents_low\?TNS_ADMIN=/tmp/wallet 
 fn config app oci-adb-jdbc-java-app DB_USER [user]
+fn config app oci-adb-jdbc-java-app NAMESPACE [name]
+fn config app oci-adb-jdbc-java-app BUCKET_NAME [name]
+
 ```
 
 * Download Wallet

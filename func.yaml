@@ -1,9 +1,10 @@
 schema_version: 20180708
 name: oci-adb-jdbc-java
-version: 0.0.26
+version: 0.0.39
 runtime: java
 build_image: fnproject/fn-java-fdk-build:jdk11-1.0.105
 run_image: fnproject/fn-java-fdk:jre11-1.0.105
 cmd: com.example.fn.HelloFunction::handleRequest
+memory: 1024
 timeout: 120
 idle_timeout: 1800

@@ -1,5 +1,6 @@
 package com.example.fn;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.Region;
 import com.oracle.bmc.auth.ResourcePrincipalAuthenticationDetailsProvider;
@@ -9,7 +10,8 @@ import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
-import oracle.jdbc.OracleDriver;
+import oracle.ucp.jdbc.PoolDataSource;
+import oracle.ucp.jdbc.PoolDataSourceFactory;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -21,45 +23,61 @@ import java.util.List;
 
 public class HelloFunction {
 
-    File walletDir = new File("/tmp", "wallet");
+    private PoolDataSource poolDataSource;
 
-    public String handleRequest(String input) {
+    private final File walletDir = new File("/tmp", "wallet");
+    private final String namespace = System.getenv().get("NAMESPACE");
+    private final String bucketName = System.getenv().get("BUCKET_NAME");
+    private final String dbUser = System.getenv().get("DB_USER");
+    private final String dbPassword = System.getenv().get("DB_PASSWORD");
+    private final String dbUrl = System.getenv().get("DB_URL");
+
+    final static String CONN_FACTORY_CLASS_NAME="oracle.jdbc.pool.OracleDataSource";
+
+    public HelloFunction() {
+        System.out.println("Setting up pool data source");
+        poolDataSource = PoolDataSourceFactory.getPoolDataSource();
+        try {
+            poolDataSource.setConnectionFactoryClassName(CONN_FACTORY_CLASS_NAME);
+            poolDataSource.setURL(dbUrl);
+            poolDataSource.setUser(dbUser);
+            poolDataSource.setPassword(dbPassword);
+            poolDataSource.setConnectionPoolName("UCP_POOL");
+        }
+        catch (SQLException e) {
+            System.out.println("Pool data source error!");
+            e.printStackTrace();
+        }
+        System.out.println("Pool data source setup...");
+    }
+
+    public List handleRequest(String input) throws SQLException, JsonProcessingException {
         System.setProperty("oracle.jdbc.fanEnabled", "false");
         String name = (input == null || input.isEmpty()) ? "world"  : input;
 
-        String dbUser = System.getenv().get("DB_USER");
-        String dbPassword = System.getenv().get("DB_PASSWORD");
-        String dbUrl = System.getenv().get("DB_URL");
-
         if( needWalletDownload() ) {
-            System.out.println("start wallet download...");
+            System.out.println("Start wallet download...");
             downloadWallet();
-            System.out.println("end wallet download...");
+            System.out.println("End wallet download!");
         }
-        ResultSet resultSet = null;
+        Connection conn = poolDataSource.getConnection();
+        conn.setAutoCommit(false);
 
-        try {
-            DriverManager.registerDriver(new OracleDriver());
-            Connection con = DriverManager.getConnection(dbUrl,dbUser,dbPassword);
-            Statement st = con.createStatement();
-            resultSet = st.executeQuery("select * from employees");
-            List<HashMap<String, Object>> recordList = convertResultSetToList(resultSet);
-            System.out.println( new ObjectMapper().writeValueAsString(recordList) );
-            System.out.println("***");
-            con.close();
-        }
-        catch (Exception ex) {
-            ex.printStackTrace();
-        }
+        Statement statement = conn.createStatement();
+        ResultSet resultSet = statement.executeQuery("select * from employees");
+        List<HashMap<String, Object>> recordList = convertResultSetToList(resultSet);
+        System.out.println( new ObjectMapper().writeValueAsString(recordList) );
+        System.out.println("***");
 
-        return "Hello, " + name + "!";
+        conn.close();
+
+        return recordList;
     }
 
     private List<HashMap<String,Object>> convertResultSetToList(ResultSet rs) throws SQLException {
         ResultSetMetaData md = rs.getMetaData();
         int columns = md.getColumnCount();
         List<HashMap<String,Object>> list = new ArrayList<HashMap<String,Object>>();
-
         while (rs.next()) {
             HashMap<String,Object> row = new HashMap<String, Object>(columns);
             for(int i=1; i<=columns; ++i) {
@@ -67,7 +85,6 @@ public class HelloFunction {
             }
             list.add(row);
         }
-
         return list;
     }
 
@@ -78,37 +95,35 @@ public class HelloFunction {
         }
         else {
             System.out.println("Didn't find a wallet, let's download one...");
-            boolean dirCreated = walletDir.mkdirs();
-            System.out.println(dirCreated);
+            walletDir.mkdirs();
             return true;
         }
     }
 
     private void downloadWallet() {
-        // create directory
-
         // Use Resource Principal
         final ResourcePrincipalAuthenticationDetailsProvider provider =
                 ResourcePrincipalAuthenticationDetailsProvider.builder().build();
 
         ObjectStorage client = new ObjectStorageClient(provider);
         client.setRegion(Region.US_PHOENIX_1);
-        System.out.println("Listing all objects...");
+
+        System.out.println("Retrieving a list of all objects in /" + namespace + "/" + bucketName + "...");
         // List all objects in wallet bucket
         ListObjectsRequest listObjectsRequest = ListObjectsRequest.builder()
-                .namespaceName("toddrsharp")
-                .bucketName("wallet")
+                .namespaceName(namespace)
+                .bucketName(bucketName)
                 .build();
         ListObjectsResponse listObjectsResponse = client.listObjects(listObjectsRequest);
-        System.out.println("Listed all objects...");
+        System.out.println("List retrieved. Starting download of each object...");
 
         // Iterate over each wallet file, downloading it to the Function's Docker container
         listObjectsResponse.getListObjects().getObjects().stream().forEach(objectSummary -> {
-            System.out.println("Looping... Current object... " + objectSummary.getName());
+            System.out.println("Downloading wallet file: [" + objectSummary.getName() + "]");
 
             GetObjectRequest objectRequest = GetObjectRequest.builder()
-                    .namespaceName("toddrsharp")
-                    .bucketName("wallet")
+                    .namespaceName(namespace)
+                    .bucketName(bucketName)
                     .objectName(objectSummary.getName())
                     .build();
             GetObjectResponse objectResponse = client.getObject(objectRequest);
@@ -116,7 +131,7 @@ public class HelloFunction {
             try {
                 File f = new File(walletDir + "/" + objectSummary.getName());
                 FileUtils.copyToFile( objectResponse.getInputStream(), f );
-                System.out.println(f.getAbsolutePath());
+                System.out.println("Stored wallet file: " + f.getAbsolutePath());
             } catch (IOException e) {
                 e.printStackTrace();
             }
