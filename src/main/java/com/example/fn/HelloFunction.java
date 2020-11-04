@@ -106,7 +106,7 @@ public class HelloFunction {
                 ResourcePrincipalAuthenticationDetailsProvider.builder().build();
 
         ObjectStorage client = new ObjectStorageClient(provider);
-        client.setRegion(Region.US_PHOENIX_1);
+		client.setRegion(System.getenv("OCI_RESOURCE_PRINCIPAL_REGION"));
 
         System.out.println("Retrieving a list of all objects in /" + namespace + "/" + bucketName + "...");
         // List all objects in wallet bucket
